@@ -1,0 +1,5 @@
+reforwarding port if pod dies
+
+saving forwards between sessions ??
+
+ask user if they want to replace endpoint/service if it already exists
