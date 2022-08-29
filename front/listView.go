@@ -10,16 +10,20 @@ func (m model) handleUpdateList() (tea.Model, tea.Cmd) {
 	if len(m.list.Items()) == 0 {
 		m.list.StopSpinner()
 	}
-	if m.view == endpointView {
+	switch m.view {
+	case endpointView:
 		items := createNewEndpointList()
 		m.list.SetItems(items)
 		m.list.Title = "Endpoints"
 		return m, waitForActivity(m.notify)
-	}
-	if m.view == serviceView {
+	case servicesView:
 		items := createNewServiceList()
 		m.list.SetItems(items)
 		m.list.Title = "Services"
+		return m, waitForActivity(m.notify)
+	case deleteForwardView:
+		items := m.createToDeleteList()
+		m.list.SetItems(items)
 		return m, waitForActivity(m.notify)
 	}
 

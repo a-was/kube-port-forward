@@ -15,6 +15,11 @@ func (m model) handleServicesView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lastView = m.view
 		return m.Update(kube.MapUpdateMsg{})
 
+	case tea.KeyDelete.String():
+		m.selectedService = findService(m.list.SelectedItem().FilterValue())
+		m.selectedPod = nil
+		return m.toDelete()
+
 	case tea.KeyEnter.String():
 		m.view = serviceForwardView
 		m = m.forwardInputs()

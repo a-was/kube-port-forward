@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/main-kube/util/slice"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/portforward"
@@ -15,9 +16,10 @@ import (
 type PortForwardA struct {
 	KubeClient *ClientS
 
-	Name      string
-	Namespace string
-	LocalPort int
+	Name        string
+	ServiceName string
+	Namespace   string
+	LocalPort   int
 	// KubePort is the target port for the pod
 	KubePort  int
 	Resource  string
@@ -42,7 +44,7 @@ func init() {
 func (pf *PortForwardA) Forward(notify chan any) {
 
 	pf.KubeClient = Client
-	pf.stopCh = make(chan struct{}, 1)
+	pf.stopCh = make(chan struct{})
 	pf.readyCh = make(chan struct{})
 	pf.streams = genericclioptions.IOStreams{
 		Out:    out,
@@ -54,6 +56,7 @@ func (pf *PortForwardA) Forward(notify chan any) {
 		if err := pf.getFirstPod(); err != nil {
 			notify <- err
 			log.Error(err)
+			return
 		}
 	}
 
@@ -86,10 +89,14 @@ func (pf *PortForwardA) Close() {
 	if pf == nil {
 		return
 	}
-	close(pf.stopCh)
+	pf.stopCh <- struct{}{}
+	slice.Remove(&Map.Get(pf.Namespace).Get(pf.Name).PFs, pf)
+	if Services.Get(pf.Namespace).Get(pf.ServiceName) != nil {
+		slice.Remove(&Services.Get(pf.Namespace).Get(pf.ServiceName).PFs, pf)
+	}
 }
 
-// TODO fix this
+// it works now ¯\_(ツ)_/¯
 func (pf *PortForwardA) Ready() {
 	<-pf.readyCh
 }

@@ -32,7 +32,6 @@ func (m model) forwardInputs() model {
 	}
 
 	return m
-
 }
 
 func (m model) setupForward() (tea.Model, tea.Cmd) {
@@ -72,19 +71,18 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
 	case serviceForwardView:
 		pf = &kube.PortForwardA{
-			Name:      m.selectedService.Name,
-			Namespace: m.selectedService.Namespace,
-			Resource:  "services",
-			KubePort:  pp,
-			LocalPort: lp,
+			Name:        m.selectedService.Name,
+			ServiceName: m.selectedService.Name,
+			Namespace:   m.selectedService.Namespace,
+			Resource:    "services",
+			KubePort:    pp,
+			LocalPort:   lp,
 		}
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
 	}
 
 	go func() {
 		go pf.Forward(m.notify)
-		// pf.Ready()
-		// log.Info("Ports ready")
 	}()
 	m.view = m.lastView
 	m.forwardError = ""

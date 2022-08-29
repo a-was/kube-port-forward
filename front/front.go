@@ -22,8 +22,9 @@ const (
 	podForwardView     view = 1
 	endpointAddView    view = 2
 	endpointView       view = 3
-	serviceView        view = 4
+	servicesView       view = 4
 	serviceForwardView view = 5
+	deleteForwardView  view = 6
 )
 
 var (
@@ -94,7 +95,7 @@ func Start() {
 	m.list.StartSpinner()
 	m.list.StatusMessageLifetime = time.Second * 10
 	m.list.Title = "Services"
-	m.view = 4
+	m.lastView, m.view = 4, 4
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
@@ -111,7 +112,7 @@ func (m model) Init() tea.Cmd {
 }
 func (m model) View() string {
 	switch m.view {
-	case podsView, endpointView, serviceView:
+	case podsView, endpointView, servicesView, deleteForwardView:
 		return m.listView()
 	case podForwardView:
 		return m.podForwardView()
@@ -148,13 +149,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd != nil {
 				return m, cmd
 			}
-		case serviceView:
+		case servicesView:
 			m, cmd := m.handleServicesView(msg)
 			if cmd != nil {
 				return m, cmd
 			}
 		case serviceForwardView:
 			m, cmd := m.handleServiceForwardView(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+		case deleteForwardView:
+			m, cmd := m.handleDeleteForwardView(msg)
 			if cmd != nil {
 				return m, cmd
 			}
@@ -183,13 +189,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	switch m.view {
-	case podsView, serviceView:
+	case endpointView, podsView, servicesView, deleteForwardView:
 		m.list, cmd = m.list.Update(msg)
 	case podForwardView, endpointAddView, serviceForwardView:
 		cmd = m.updateInputs(msg)
-	case endpointView:
-		m.list, cmd = m.list.Update(msg)
-
 	}
 
 	return m, cmd
@@ -257,7 +260,7 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) resetView() (tea.Model, tea.Cmd) {
-	m.view = podsView
+	m.view = m.lastView
 	m.focusIndex = 0
 	return m.render()
 }
@@ -277,7 +280,7 @@ func waitForActivity(sub chan any) tea.Cmd {
 		case statusMessage:
 			return t
 		case error:
-			return statusMessage{t.Error()}
+			return statusMessage{errColour + t.Error()}
 		}
 		return nil
 	}
@@ -303,10 +306,6 @@ func (m model) checkInputs() bool {
 		}
 	}
 	return true
-}
-
-func (m model) error(msg string) (model, tea.Cmd) {
-	return m, m.list.NewStatusMessage(errColour + msg)
 }
 
 func initKeyMap() list.KeyMap {

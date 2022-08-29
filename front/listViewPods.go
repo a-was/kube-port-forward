@@ -13,9 +13,13 @@ import (
 func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
-		m.view = serviceView
+		m.view = servicesView
 		m.lastView = m.view
 		return m.Update(kube.MapUpdateMsg{})
+	case tea.KeyDelete.String():
+		m.selectedPod = findPod(m.list.SelectedItem().FilterValue())
+		m.selectedService = nil
+		return m.toDelete()
 
 	// case tea.KeyCtrlLeft.String():
 	// 	m.view = serviceAddView
