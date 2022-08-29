@@ -3,10 +3,11 @@ package kube
 import (
 	"context"
 	"fmt"
-	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
 
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
@@ -45,7 +46,7 @@ func Connect(configName string) {
 }
 
 func findConfig(configName string) (kConfig []byte) {
-	for _, v := range config.Config.KUBECONFIG_FOLDERS {
+	for _, v := range config.KUBECONFIG_FOLDERS {
 		if v == "" {
 			continue
 		}
@@ -68,7 +69,7 @@ func findConfig(configName string) (kConfig []byte) {
 		}
 
 	}
-	log.Errorf("Config not found in specified folders %v", config.Config.KUBECONFIG_FOLDERS)
+	log.Errorf("Config not found in specified folders %v", config.KUBECONFIG_FOLDERS)
 	os.Exit(1)
 	return
 }
