@@ -21,7 +21,7 @@ var (
 )
 
 type Pod struct {
-	*PodPortForwardA
+	PFs       []*PodPortForwardA
 	Name      string
 	Namespace string
 	Status    string
@@ -68,7 +68,6 @@ func cleanMap(ns []corev1.Namespace) {
 	}
 }
 
-// DON'T LOOK
 func fixPods(nsName string, notify chan any) {
 	podlist, err := Client.API.CoreV1().Pods(nsName).List(Client.CTX, v1.ListOptions{})
 	if err != nil {
@@ -114,17 +113,18 @@ func fillPorts(p corev1.Pod) (ports []string) {
 }
 
 func (p *Pod) Ping() {
-	log.Info("------------------------- dupa -------------------------")
-	if p.PodPortForwardA == nil {
-		log.Info("nil ", p.Name)
-		return
+	for _, pf := range p.PFs {
+		if pf == nil {
+			log.Info("nil ", p.Name)
+			return
+		}
+		log.Info("ping ", p.Name)
+		_, err := http.Get(fmt.Sprintf("localhost:%d", pf.LocalPort))
+		if err != nil {
+			log.Info(err)
+			pf.Condition = false
+			return
+		}
+		pf.Condition = true
 	}
-	log.Info("ping ", p.Name)
-	_, err := http.Get(fmt.Sprintf("localhost:%d", p.LocalPort))
-	if err != nil {
-		log.Info(err)
-		p.Condition = false
-		return
-	}
-	p.Condition = true
 }
