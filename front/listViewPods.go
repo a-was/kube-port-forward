@@ -67,7 +67,6 @@ func prettyDesc(pod *kube.Pod) (desc string) {
 
 func connectionStatus(pf *kube.PortForwardA) (string, int) {
 	if pf.Condition {
-		log.Info(len("✔️ "))
 		return "✔️ ", 5
 	}
 	return "❌", 1
@@ -97,6 +96,7 @@ func testConnections() {
 		}
 	}
 }
+
 func ping(p *kube.PortForwardA) {
 	if p == nil {
 		return

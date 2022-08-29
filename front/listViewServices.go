@@ -2,6 +2,7 @@ package front
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -61,4 +62,18 @@ func createNewServiceList() (items []list.Item) {
 		}
 	}
 	return
+}
+
+func testServiceAKAPodConnections() {
+	for range time.Tick(time.Second) {
+		for element := range kube.Services.Iter() {
+			for ser := range element.Value.Iter() {
+				for _, pf := range ser.Value.PFs {
+					if pf != nil {
+						go ping(pf)
+					}
+				}
+			}
+		}
+	}
 }

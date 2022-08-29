@@ -87,6 +87,7 @@ func Start() {
 	go kube.UpdateMap(m.notify)
 	go kube.UpdateServiceMap(m.notify)
 	go testConnections()
+	go testServiceAKAPodConnections()
 	ti := textinput.New()
 	ti.CharLimit = 6
 	ti.Width = 20
@@ -95,7 +96,7 @@ func Start() {
 	m.list.StartSpinner()
 	m.list.StatusMessageLifetime = time.Second * 10
 	m.list.Title = "Pods"
-	m.view = 4
+	// m.view = 4
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
@@ -136,7 +137,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case podForwardView:
 			m, cmd := m.handlePodForwardView(msg)
-			log.Info(cmd)
 			if cmd != nil {
 				return m, cmd
 			}
@@ -214,8 +214,7 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// If so, exit.
 	if s == "enter" && m.focusIndex == len(m.inputs) {
 		if !m.checkInputs() {
-			m.error("All fields have to be filled")
-			return m.error("All fields have to be filled")
+			return m.fpError("All fields have to be filled")
 		}
 		switch m.view {
 		case podForwardView, serviceForwardView:
@@ -227,10 +226,12 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Cycle indexes
-	if s == "up" || s == "shift+tab" {
+	if s == "up" {
 		m.focusIndex--
+		m.podPortfill = 0
 	} else if s != "tab" || (s == "tab" && m.view != podForwardView) {
 		m.focusIndex++
+		m.podPortfill = 0
 	}
 
 	if m.focusIndex > len(m.inputs) {
@@ -277,6 +278,8 @@ func waitForActivity(sub chan any) tea.Cmd {
 			return t
 		case statusMessage:
 			return t
+		case error:
+			return statusMessage{t.Error()}
 		}
 		return nil
 	}

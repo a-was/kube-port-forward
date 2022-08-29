@@ -131,11 +131,9 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 		}
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
 	}
-	log.Info(m.selectedService.Name)
-	log.Info(m.selectedService.Namespace)
 
 	go func() {
-		go pf.Forward()
+		go pf.Forward(m.notify)
 		// pf.Ready()
 		// log.Info("Ports ready")
 	}()

@@ -1,10 +1,12 @@
 package kube
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -32,11 +34,12 @@ type PortForwardA struct {
 var out *os.File
 
 func init() {
-	out, _ = os.OpenFile("/tmp/ibtwpfp-portforward-log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	// out, _ = os.OpenFile("/tmp/ibtwpfp-portforward-log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	out, _ = os.OpenFile("logk", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	os.Stderr = out
 }
 
-func (pf *PortForwardA) Forward() {
+func (pf *PortForwardA) Forward(notify chan any) {
 
 	pf.KubeClient = Client
 	pf.stopCh = make(chan struct{}, 1)
@@ -46,34 +49,33 @@ func (pf *PortForwardA) Forward() {
 		ErrOut: out,
 		In:     os.Stdin,
 	}
-	log.Info("PortForward")
-	log.Info(pf.Resource)
+	if pf.Resource == "services" {
+		pf.Resource = "pods"
+		if err := pf.getFirstPod(); err != nil {
+			notify <- err
+			log.Error(err)
+		}
+	}
 
 	url := pf.KubeClient.API.RESTClient().Post().Resource(pf.Resource).Namespace(pf.Namespace).Name(pf.Name).SubResource("portforward").Prefix("/api/v1").URL()
-	log.Info(url)
 	transport, upgrader, err := spdy.RoundTripperFor(pf.KubeClient.Config)
 	if err != nil {
+		notify <- err
 		log.Error(err)
-		fmt.Fprintln(out, err)
 		return
 	}
-	fmt.Fprintln(out, "PortForward started")
 
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, url)
 	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", pf.LocalPort, pf.KubePort)}, pf.stopCh, pf.readyCh, pf.streams.Out, pf.streams.ErrOut)
 	if err != nil {
-		fmt.Fprintln(out, err)
+		notify <- err
 		log.Error(err)
 		return
 	}
 
-	// if pod.PodPortForwardA != nil {
-	// 	pod.PodPortForwardA.Close()
-	// }
-
 	if err := fw.ForwardPorts(); err != nil {
 		pf = nil
-		fmt.Fprintln(out, err)
+		notify <- err
 		log.Error(err)
 		return
 	}
@@ -90,4 +92,30 @@ func (req *PortForwardA) Close() {
 // TODO fix this
 func (req *PortForwardA) Ready() {
 	<-req.readyCh
+}
+
+func (req *PortForwardA) getFirstPod() error {
+	serv, err := Client.API.CoreV1().Services(req.Namespace).Get(context.TODO(), req.Name, v1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	var selector string
+	for k, v := range serv.Spec.Selector {
+		selector = k + "=" + v
+		break
+	}
+
+	pods, err := Client.API.CoreV1().Pods(req.Namespace).List(Client.CTX, v1.ListOptions{
+		LabelSelector: selector,
+		Limit:         1,
+	})
+	if err != nil {
+		return err
+	}
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("Service has no pods")
+	}
+	pod := pods.Items[0]
+	req.Name = pod.Name
+	return nil
 }
