@@ -12,6 +12,16 @@ import (
 	"github.com/main-kube/util"
 )
 
+func (m model) handleServiceAddView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case tea.KeyEsc.String():
+		return m.resetView()
+	case tea.KeyTab.String(), tea.KeyEnter.String(), tea.KeyUp.String(), tea.KeyDown.String():
+		return m.handleFocus(msg)
+	}
+	return m, nil
+}
+
 func (m model) serviceAddView() string {
 	var b strings.Builder
 
@@ -27,6 +37,7 @@ func (m model) serviceAddView() string {
 		button = &focusedButton
 	}
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
+	fmt.Fprintf(&b, "\n%s\n", m.serviceAddError)
 
 	return b.String()
 }
@@ -65,14 +76,11 @@ func (m model) serviceInputs() model {
 
 }
 
-func (m model) setupEndpoint() (model, tea.Cmd) {
+func (m model) setupEndpoint() (tea.Model, tea.Cmd) {
 
-	m.view = 0
-	var cmd tea.Cmd
 	hp, err := strconv.Atoi((m.inputs[2].Value()))
 	if err != nil {
-		cmd = m.list.NewStatusMessage(err.Error())
-		return m, cmd
+		return m.serviceError(err.Error())
 	}
 
 	// kp, err := strconv.Atoi((m.inputs[3].Value()))
@@ -89,9 +97,11 @@ func (m model) setupEndpoint() (model, tea.Cmd) {
 		Addr:      m.inputs[3].Value(),
 	}
 	if end.CheckServiceExists() {
-		cmd = m.list.NewStatusMessage("Service already exists")
-		return m, cmd
+		return m.serviceError("Service already exists")
 	}
+
+	m.view = 3
+	m.serviceAddError = ""
 	go func(m model) {
 		if err := end.CreateService(); err != nil {
 			m.notify <- statusMessage{err.Error()}
@@ -99,4 +109,9 @@ func (m model) setupEndpoint() (model, tea.Cmd) {
 		m.notify <- statusMessage{fmt.Sprintf("Service created: %s", end.Name)}
 	}(m)
 	return m, nil
+}
+
+func (m model) serviceError(msg string) (tea.Model, tea.Cmd) {
+	m.serviceAddError = errColour + msg
+	return m.Update(statusMessage{text: msg})
 }

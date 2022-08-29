@@ -56,7 +56,10 @@ func (end *Endpoint) CreateService() error {
 }
 
 func DeleteService(name string) {
-	end := Services.Get(name)
+	end, ok := Services.GetFull(name)
+	if !ok {
+		return
+	}
 	if err := Client.API.CoreV1().Services(end.Namespace).Delete(context.TODO(), name, metav1.DeleteOptions{}); err != nil {
 		log.Error(err)
 		return
@@ -130,6 +133,7 @@ func (end *Endpoint) updateEndpoint() error {
 
 func (end Endpoint) CheckServiceExists() bool {
 	if _, ok := Services.GetFull(end.Name); ok {
+		log.Info("Service already exists: ", ok)
 		return true
 	}
 	for element := range Services.Iter() {

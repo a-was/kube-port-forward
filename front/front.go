@@ -12,8 +12,16 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/main-kube/util/slice"
 	"go.uber.org/zap"
+)
+
+type view int8
+
+const (
+	podsView       view = 0
+	forwardView    view = 1
+	serviceAddView view = 2
+	serviceView    view = 3
 )
 
 var (
@@ -24,14 +32,16 @@ var (
 	blurredStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+	errColour     = "\033[38:5:204m"
 
-	log       = zap.S()
+	log       *zap.SugaredLogger
 	areaWidth int
 )
 
 type statusMessage struct {
 	text string
 }
+type renderMsg struct{}
 
 type item struct {
 	title, desc string
@@ -44,15 +54,19 @@ func (i item) FilterValue() string { return i.title }
 type model struct {
 	list        list.Model
 	inputs      []textinput.Model
-	view        int8
+	view        view
 	focusIndex  int
 	podPortfill int
 	selectedPod *kube.Pod
+
+	forwardError    string
+	serviceAddError string
 
 	notify chan any
 }
 
 func Start() {
+	log = zap.S()
 	f, err := tea.LogToFile("teaLog", "xD")
 	if err != nil {
 		fmt.Println(err)
@@ -89,95 +103,52 @@ func (m model) Init() tea.Cmd {
 }
 func (m model) View() string {
 	switch m.view {
-	case 0, 3:
+	case podsView, serviceView:
 		return m.listView()
-	case 1:
+	case forwardView:
 		return m.forwardView()
-	case 2:
+	case serviceAddView:
 		return m.serviceAddView()
 	}
 	return "Something went wrong"
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// if m.list.FilterState() == list.Filtering {
-		// 	break
-		// }
-		ms := msg.String()
-		switch {
-		case ms == tea.KeyPgUp.String(), ms == tea.KeyPgDown.String():
-			switch m.view {
-			case 0:
-				m.view = 3
-			case 3:
-				m.view = 0
+		switch m.view {
+		case podsView:
+			m, cmd := m.handlePodsView(msg)
+			if cmd != nil {
+				return m, cmd
 			}
-			return m.Update(kube.MapUpdateMsg{})
 
-		case ms == tea.KeyDelete.String() && m.view == 3:
-			kube.DeleteService(m.list.SelectedItem().FilterValue())
-
-		case ms == "ctrl+c":
+		case forwardView:
+			m, cmd := m.handleForwardView(msg)
+			log.Info(cmd)
+			if cmd != nil {
+				return m, cmd
+			}
+		case serviceAddView:
+			m, cmd := m.handleServiceAddView(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+		case serviceView:
+			m, cmd := m.handleServiceView(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+		}
+		if msg.String() == "ctrl+c" {
 			closeAllConns()
 			return m, tea.Quit
-
-		case ms == "enter" && m.view == 0:
-			m.view = 1
-			m = m.forwardInputs()
-			// need to use findPod bc i don't know how to get desc from list.item
-			m.selectedPod = findPod(m.list.SelectedItem().FilterValue())
-			return m, nil
-
-		case ms == tea.KeyCtrlLeft.String() && (m.view == 0 || m.view == 3):
-			m.view = 2
-			m = m.serviceInputs()
-			return m, nil
-
-		case slice.Contains([]string{"esc", "tab", "enter", "up", "down"}, ms) && m.view == 1:
-			if ms == "esc" {
-				return m.resetView()
-			}
-			if ms == "tab" {
-				if m.podPortfill > len(m.selectedPod.Ports) || m.podPortfill >= len(m.selectedPod.Ports) {
-					m.podPortfill = 0
-				}
-				if m.focusIndex >= len(m.inputs) {
-					m.focusIndex = 0
-				}
-				m.inputs[m.focusIndex].SetValue(m.selectedPod.Ports[m.podPortfill])
-				m.podPortfill++
-			}
-			return m.handleFocus(msg)
-
-		case slice.Contains([]string{"esc", "tab", "enter", "up", "down"}, ms) && m.view == 2:
-			if ms == "esc" {
-				return m.resetView()
-			}
-			return m.handleFocus(msg)
 		}
 
+	case renderMsg:
+		return m, nil
 	case kube.MapUpdateMsg:
-		if m.list.FilterState() == list.Filtering {
-			break
-		}
-		if len(m.list.Items()) == 0 {
-			m.list.StopSpinner()
-		}
-		var items []list.Item
-		if m.view == 3 {
-			items = createNewServiceList()
-			m.list.SetItems(items)
-			m.list.Title = "Services"
-			return m, waitForActivity(m.notify)
-		}
-
-		items = createNewPodList()
-		m.list.Title = "Pods"
-		m.list.SetItems(items)
-		return m, waitForActivity(m.notify)
+		return m.handleUpdateList()
 
 	case statusMessage:
 		// m.view = 0
@@ -193,11 +164,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	switch m.view {
-	case 0:
+	case podsView:
 		m.list, cmd = m.list.Update(msg)
-	case 1, 2:
+	case forwardView, serviceAddView:
 		cmd = m.updateInputs(msg)
-	case 3:
+	case serviceView:
 		m.list, cmd = m.list.Update(msg)
 
 	}
@@ -215,20 +186,20 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m model) handleFocus(msg tea.KeyMsg) (model, tea.Cmd) {
+func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
 
 	// Did the user press enter while the submit button was focused?
 	// If so, exit.
 	if s == "enter" && m.focusIndex == len(m.inputs) {
 		if !m.checkInputs() {
-			cmd := m.list.NewStatusMessage("All fields have to be filled")
-			return m, cmd
+			m.error("All fields have to be filled")
+			return m.error("All fields have to be filled")
 		}
 		switch m.view {
-		case 1:
+		case forwardView:
 			return m.setupForward()
-		case 2:
+		case serviceAddView:
 			return m.setupEndpoint()
 		}
 
@@ -237,7 +208,7 @@ func (m model) handleFocus(msg tea.KeyMsg) (model, tea.Cmd) {
 	// Cycle indexes
 	if s == "up" || s == "shift+tab" {
 		m.focusIndex--
-	} else if s != "tab" || (s == "tab" && m.view != 1) {
+	} else if s != "tab" || (s == "tab" && m.view != forwardView) {
 		m.focusIndex++
 	}
 
@@ -261,14 +232,20 @@ func (m model) handleFocus(msg tea.KeyMsg) (model, tea.Cmd) {
 		m.inputs[i].PromptStyle = noStyle
 		m.inputs[i].TextStyle = noStyle
 	}
-
+	cmds = append(cmds, func() tea.Msg { return renderMsg{} })
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) resetView() (tea.Model, tea.Cmd) {
-	m.view = 0
+	m.view = podsView
 	m.focusIndex = 0
-	return m, nil
+	return m.render()
+}
+
+func (m model) render() (tea.Model, tea.Cmd) {
+	return m, func() tea.Msg {
+		return renderMsg{}
+	}
 }
 
 func waitForActivity(sub chan any) tea.Cmd {
@@ -307,7 +284,7 @@ func (m model) checkInputs() bool {
 }
 
 func (m model) error(msg string) (model, tea.Cmd) {
-	return m, m.list.NewStatusMessage(msg)
+	return m, m.list.NewStatusMessage(errColour + msg)
 }
 
 func initKeyMap() list.KeyMap {

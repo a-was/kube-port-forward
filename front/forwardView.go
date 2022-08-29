@@ -13,6 +13,26 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (m model) handleForwardView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case tea.KeyTab.String():
+		if m.podPortfill > len(m.selectedPod.Ports) || m.podPortfill >= len(m.selectedPod.Ports) {
+			m.podPortfill = 0
+		}
+		m.inputs[m.focusIndex].SetValue(m.selectedPod.Ports[m.podPortfill])
+		m.podPortfill++
+		return m.handleFocus(msg)
+
+	case tea.KeyEscape.String():
+		return m.resetView()
+
+	case tea.KeyEnter.String(), tea.KeyUp.String(), tea.KeyDown.String():
+		return m.handleFocus(msg)
+
+	}
+	return m, nil
+}
+
 func (m model) forwardView() string {
 	var b strings.Builder
 	b.WriteString("Pod Ports: ")
@@ -33,6 +53,7 @@ func (m model) forwardView() string {
 		button = &focusedButton
 	}
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
+	fmt.Fprintf(&b, "\n%s\n", m.forwardError)
 
 	return b.String()
 }
@@ -62,31 +83,28 @@ func (m model) forwardInputs() model {
 
 }
 
-func (m model) setupForward() (model, tea.Cmd) {
-	var cmd tea.Cmd
+func (m model) setupForward() (tea.Model, tea.Cmd) {
 	if m.inputs[0].Value() == "" || m.inputs[1].Value() == "" {
-		cmd = m.list.NewStatusMessage("One of ports was empty")
-		return m, cmd
+		return m.fpError("One of ports was empty")
 	}
 	pp, err := strconv.Atoi((m.inputs[0].Value()))
 
 	if err != nil {
-		cmd = m.list.NewStatusMessage(err.Error())
-		return m, cmd
+		return m.fpError(err.Error())
 	}
 
 	lp, err := strconv.Atoi((m.inputs[1].Value()))
 	if err != nil {
-		return m.error(err.Error())
+		return m.fpError(err.Error())
 	}
 
 	// check port is already forwarded
 	if m.checkPorts(pp) {
-		return m.error("Port already forwarded")
+		return m.fpError("Port already forwarded")
 	}
 
 	if !checkLocalPort(strconv.Itoa(lp)) {
-		return m.error("Local port is taken")
+		return m.fpError("Local port is taken")
 	}
 
 	m.view = 0
@@ -101,8 +119,9 @@ func (m model) setupForward() (model, tea.Cmd) {
 		pf.Ready()
 		log.Info("Ports ready")
 	}()
+	m.forwardError = ""
 	m.notify <- kube.MapUpdateMsg{}
-	return m, nil
+	return m.render()
 }
 
 func (m model) checkPorts(pp int) bool {
@@ -125,4 +144,10 @@ func checkLocalPort(lp string) bool {
 		return false
 	}
 	return false
+}
+
+func (m model) fpError(msg string) (tea.Model, tea.Cmd) {
+
+	m.forwardError = errColour + msg
+	return m.Update(statusMessage{text: msg})
 }
