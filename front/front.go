@@ -86,7 +86,7 @@ func Start() {
 	go kube.UpdateMap(m.notify)
 	go kube.UpdateServiceMap(m.notify)
 	go testConnections()
-	go testServiceAKAPodConnections()
+	// go testServiceAKAPodConnections()
 	ti := textinput.New()
 	ti.CharLimit = 6
 	ti.Width = 20

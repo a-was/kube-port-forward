@@ -82,20 +82,20 @@ func (pf *PortForwardA) Forward(notify chan any) {
 
 }
 
-func (req *PortForwardA) Close() {
-	if req == nil {
+func (pf *PortForwardA) Close() {
+	if pf == nil {
 		return
 	}
-	close(req.stopCh)
+	close(pf.stopCh)
 }
 
 // TODO fix this
-func (req *PortForwardA) Ready() {
-	<-req.readyCh
+func (pf *PortForwardA) Ready() {
+	<-pf.readyCh
 }
 
-func (req *PortForwardA) getFirstPod() error {
-	serv, err := Client.API.CoreV1().Services(req.Namespace).Get(context.TODO(), req.Name, v1.GetOptions{})
+func (pf *PortForwardA) getFirstPod() error {
+	serv, err := Client.API.CoreV1().Services(pf.Namespace).Get(context.TODO(), pf.Name, v1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (req *PortForwardA) getFirstPod() error {
 		break
 	}
 
-	pods, err := Client.API.CoreV1().Pods(req.Namespace).List(Client.CTX, v1.ListOptions{
+	pods, err := Client.API.CoreV1().Pods(pf.Namespace).List(Client.CTX, v1.ListOptions{
 		LabelSelector: selector,
 		Limit:         1,
 	})
@@ -116,6 +116,8 @@ func (req *PortForwardA) getFirstPod() error {
 		return fmt.Errorf("Service has no pods")
 	}
 	pod := pods.Items[0]
-	req.Name = pod.Name
+	pf.Name = pod.Name
+	podm := Map.Get(pf.Namespace).Get(pf.Name)
+	podm.PFs = append(podm.PFs, pf)
 	return nil
 }
