@@ -7,16 +7,14 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-type config struct {
+var (
 	KUBECONFIG_FOLDERS []string
-}
 
-var Config config
+	DNS_PORT = env.Get("DNS_PORT", "5353")
+)
 
 func init() {
-	Config = config{
-		KUBECONFIG_FOLDERS: env.Get("KUBECONFIG_FOLDERS", make([]string, 3)),
-	}
-	Config.KUBECONFIG_FOLDERS = append(Config.KUBECONFIG_FOLDERS, []string{filepath.Join(homedir.HomeDir(), ".k3d"), filepath.Join(homedir.HomeDir(), ".kube")}...)
-	Config.KUBECONFIG_FOLDERS = append(Config.KUBECONFIG_FOLDERS, "/etc/rancher/k3s")
+	KUBECONFIG_FOLDERS = env.Get("KUBECONFIG_FOLDERS", make([]string, 3))
+	KUBECONFIG_FOLDERS = append(KUBECONFIG_FOLDERS, []string{filepath.Join(homedir.HomeDir(), ".k3d"), filepath.Join(homedir.HomeDir(), ".kube")}...)
+	KUBECONFIG_FOLDERS = append(KUBECONFIG_FOLDERS, "/etc/rancher/k3s")
 }
