@@ -10,7 +10,7 @@ import (
 var (
 	KUBECONFIG_FOLDERS []string
 
-	DNS_PORT = env.Get("DNS_PORT", "5353")
+	DNS_ENABLED = env.Get("DNS_ENABLED", false)
 )
 
 func init() {

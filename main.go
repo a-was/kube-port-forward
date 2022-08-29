@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/dns"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/front"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
-	"os"
 )
 
 func PrettyJSONString(str string) string {
@@ -24,6 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 	go kube.Connect(os.Args[1])
+	go dns.Start()
 
 	front.Start()
 }
