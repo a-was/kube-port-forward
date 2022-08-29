@@ -67,7 +67,6 @@ type model struct {
 
 	forwardError     string
 	endpointAddError string
-	serviceAddError  string
 
 	notify chan any
 }
@@ -229,7 +228,7 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if s == "up" {
 		m.focusIndex--
 		m.podPortfill = 0
-	} else if s != "tab" || (s == "tab" && m.view != podForwardView) {
+	} else if s != "tab" {
 		m.focusIndex++
 		m.podPortfill = 0
 	}

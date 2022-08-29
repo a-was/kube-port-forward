@@ -52,6 +52,23 @@ func Connect(configName string) {
 }
 
 func findConfig(configName string) (kConfig []byte) {
+	log = zap.S()
+	var err error
+	if configName[0] == '/' {
+		kConfig, err = os.ReadFile(configName)
+		if err != nil {
+			log.Error(err)
+		}
+		return
+	}
+	if configName[0] == '~' {
+		log.Debug(os.ExpandEnv(configName))
+		kConfig, err = os.ReadFile(os.ExpandEnv(configName))
+		if err != nil {
+			log.Error(err)
+		}
+		return
+	}
 	for _, v := range config.KUBECONFIG_FOLDERS {
 		if v == "" {
 			continue
