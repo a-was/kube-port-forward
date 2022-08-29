@@ -2,7 +2,6 @@ package front
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
@@ -28,7 +27,6 @@ var (
 
 	log       = zap.S()
 	areaWidth int
-	flog      *os.File
 )
 
 type statusMessage struct {
@@ -162,6 +160,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case kube.MapUpdateMsg:
+		if m.list.FilterState() == list.Filtering {
+			break
+		}
 		if len(m.list.Items()) == 0 {
 			m.list.StopSpinner()
 		}
@@ -286,8 +287,10 @@ func waitForActivity(sub chan any) tea.Cmd {
 func closeAllConns() {
 	for element := range kube.Map.Iter() {
 		for pod := range element.Value.Iter() {
-			if pod.Value.PodPortForwardA != nil {
-				pod.Value.Close()
+			for _, pf := range pod.Value.PFs {
+				if pf != nil {
+					pf.Close()
+				}
 			}
 		}
 	}
@@ -301,6 +304,10 @@ func (m model) checkInputs() bool {
 		}
 	}
 	return true
+}
+
+func (m model) error(msg string) (model, tea.Cmd) {
+	return m, m.list.NewStatusMessage(msg)
 }
 
 func initKeyMap() list.KeyMap {

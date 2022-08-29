@@ -2,9 +2,12 @@ package front
 
 import (
 	"fmt"
-	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
+	"net"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -60,7 +63,6 @@ func (m model) forwardInputs() model {
 }
 
 func (m model) setupForward() (model, tea.Cmd) {
-	m.view = 0
 	var cmd tea.Cmd
 	if m.inputs[0].Value() == "" || m.inputs[1].Value() == "" {
 		cmd = m.list.NewStatusMessage("One of ports was empty")
@@ -75,22 +77,52 @@ func (m model) setupForward() (model, tea.Cmd) {
 
 	lp, err := strconv.Atoi((m.inputs[1].Value()))
 	if err != nil {
-		cmd = m.list.NewStatusMessage(err.Error())
-		return m, cmd
-	}
-	if m.selectedPod.PodPortForwardA != nil {
-		m.selectedPod.Close()
+		return m.error(err.Error())
 	}
 
-	m.selectedPod.PodPortForwardA = &kube.PodPortForwardA{
+	// check port is already forwarded
+	if m.checkPorts(pp) {
+		return m.error("Port already forwarded")
+	}
+
+	if !checkLocalPort(strconv.Itoa(lp)) {
+		return m.error("Local port is taken")
+	}
+
+	m.view = 0
+	pf := &kube.PodPortForwardA{
 		PodPort:   pp,
 		LocalPort: lp,
 	}
+
 	go func() {
-		go m.selectedPod.Forward(flog)
-		m.selectedPod.Ready()
+		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
+		go m.selectedPod.Forward(pf)
+		pf.Ready()
 		log.Info("Ports ready")
 	}()
 	m.notify <- kube.MapUpdateMsg{}
 	return m, nil
+}
+
+func (m model) checkPorts(pp int) bool {
+	for _, pf := range m.selectedPod.PFs {
+		if pf.PodPort == pp {
+			return true
+		}
+	}
+	return false
+}
+
+func checkLocalPort(lp string) bool {
+	timeout := time.Second
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", lp), timeout)
+	if err != nil {
+		return true
+	}
+	if conn != nil {
+		defer conn.Close()
+		return false
+	}
+	return false
 }

@@ -56,8 +56,10 @@ func createNewPodList() (items []list.Item) {
 
 func prettyDesc(pod *kube.Pod) (desc string) {
 	desc = pod.Namespace
-	if pod.PodPortForwardA != nil && pod.LocalPort > 0 {
-		desc += fmt.Sprintf(" | %d -> %d %s", pod.PodPort, pod.LocalPort, connectionStatus(pod))
+	for _, pf := range pod.PFs {
+		if pf != nil && pf.LocalPort > 0 {
+			desc += fmt.Sprintf(" | %d -> %d %s", pf.PodPort, pf.LocalPort, connectionStatus(pf))
+		}
 	}
 	width := areaWidth - len(desc) - len(pod.Status) - 6
 	for i := 0; i < width; i++ {
@@ -66,9 +68,9 @@ func prettyDesc(pod *kube.Pod) (desc string) {
 	desc += pod.Status
 	return
 }
-func connectionStatus(pod *kube.Pod) string {
-	if pod.Condition {
-		return "✔️"
+func connectionStatus(pf *kube.PodPortForwardA) string {
+	if pf.Condition {
+		return "✔️ "
 	}
 	return "❌"
 }
@@ -88,15 +90,17 @@ func testConnections() {
 	for range time.Tick(time.Second) {
 		for element := range kube.Map.Iter() {
 			for pod := range element.Value.Iter() {
-				if pod.Value.PodPortForwardA != nil {
-					go ping(pod.Value)
+				for _, pf := range pod.Value.PFs {
+					if pf != nil {
+						go ping(pf)
+					}
 				}
 			}
 		}
 	}
 }
-func ping(p *kube.Pod) {
-	if p.PodPortForwardA == nil {
+func ping(p *kube.PodPortForwardA) {
+	if p == nil {
 		return
 	}
 	_, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d", p.LocalPort))
