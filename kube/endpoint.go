@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var Services = safe.NewSortedMap(map[string]*Endpoint{}, func(data []string, i, j int) bool {
+var Endpoints = safe.NewSortedMap(map[string]*Endpoint{}, func(data []string, i, j int) bool {
 	return data[i] < data[j]
 })
 
@@ -33,7 +33,7 @@ func discover() {
 				fmt.Println(err)
 			}
 
-			Services.Set(service.Name, &Endpoint{
+			Endpoints.Set(service.Name, &Endpoint{
 				Name:      service.Name,
 				Namespace: service.Namespace,
 				KubePort:  int(service.Spec.Ports[0].Port),
@@ -51,12 +51,12 @@ func (end *Endpoint) CreateService() error {
 	if err := end.updateEndpoint(); err != nil {
 		return err
 	}
-	Services.Set(end.Name, end)
+	Endpoints.Set(end.Name, end)
 	return nil
 }
 
 func DeleteService(name string) {
-	end, ok := Services.GetFull(name)
+	end, ok := Endpoints.GetFull(name)
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func DeleteService(name string) {
 		log.Error(err)
 		return
 	}
-	Services.Delete(name)
+	Endpoints.Delete(name)
 }
 
 func (end *Endpoint) createService() error {
@@ -132,11 +132,11 @@ func (end *Endpoint) updateEndpoint() error {
 }
 
 func (end Endpoint) CheckServiceExists() bool {
-	if _, ok := Services.GetFull(end.Name); ok {
+	if _, ok := Endpoints.GetFull(end.Name); ok {
 		log.Info("Service already exists: ", ok)
 		return true
 	}
-	for element := range Services.Iter() {
+	for element := range Endpoints.Iter() {
 		if element.Value.HostPort == end.HostPort {
 			return true
 		}

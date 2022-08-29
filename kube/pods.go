@@ -21,7 +21,7 @@ var (
 )
 
 type Pod struct {
-	PFs       []*PodPortForwardA
+	PFs       []*PortForwardA
 	Name      string
 	Namespace string
 	Status    string
@@ -37,38 +37,33 @@ func newPodMap() *safe.SortedMap[string, *Pod] {
 
 func UpdateMap(notify chan any) {
 	wg := sync.WaitGroup{}
-	for range time.Tick(2 * time.Second) {
+	for range time.Tick(1 * time.Second) {
 		if Client == nil {
 			continue
 		}
-		ns, _ := Client.API.CoreV1().Namespaces().List(Client.CTX, v1.ListOptions{})
+
 		// delete nonexistent namespaces
-		go cleanMap(ns.Items)
-		for _, namespace := range ns.Items {
+		go cleanMap(namespaces)
+		for _, namespace := range namespaces {
 			wg.Add(1)
 			go func(namespace string) {
 				defer wg.Done()
-				go fixPods(namespace, notify)
-			}(namespace.Name)
+				go addPods(namespace, notify)
+			}(namespace)
 		}
 		wg.Wait()
-		// TODO notify front
 	}
 }
 
-func cleanMap(ns []corev1.Namespace) {
+func cleanMap(ns []string) {
 	if Map.Len() > 0 {
-		var nsNameList []string
-		for _, n := range ns {
-			nsNameList = append(nsNameList, n.Name)
-		}
-		for _, key := range slice.Diff(Map.Keys(), nsNameList) {
+		for _, key := range slice.Diff(Map.Keys(), ns) {
 			Map.Delete(key)
 		}
 	}
 }
 
-func fixPods(nsName string, notify chan any) {
+func addPods(nsName string, notify chan any) {
 	podlist, err := Client.API.CoreV1().Pods(nsName).List(Client.CTX, v1.ListOptions{})
 	if err != nil {
 		log.Error(err)

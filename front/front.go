@@ -18,10 +18,12 @@ import (
 type view int8
 
 const (
-	podsView       view = 0
-	forwardView    view = 1
-	serviceAddView view = 2
-	serviceView    view = 3
+	podsView           view = 0
+	podForwardView     view = 1
+	endpointAddView    view = 2
+	endpointView       view = 3
+	serviceView        view = 4
+	serviceForwardView view = 5
 )
 
 var (
@@ -52,15 +54,20 @@ func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title }
 
 type model struct {
-	list        list.Model
-	inputs      []textinput.Model
-	view        view
-	focusIndex  int
-	podPortfill int
-	selectedPod *kube.Pod
+	list            list.Model
+	inputs          []textinput.Model
+	focusIndex      int
+	podPortfill     int
+	servicePortfill int
+	selectedPod     *kube.Pod
+	selectedService *kube.Service
 
-	forwardError    string
-	serviceAddError string
+	view     view
+	lastView view
+
+	forwardError     string
+	endpointAddError string
+	serviceAddError  string
 
 	notify chan any
 }
@@ -78,6 +85,7 @@ func Start() {
 	m := model{list: list.New(items, list.NewDefaultDelegate(), 0, 0), notify: make(chan any, 10)}
 	m.list.KeyMap = initKeyMap()
 	go kube.UpdateMap(m.notify)
+	go kube.UpdateServiceMap(m.notify)
 	go testConnections()
 	ti := textinput.New()
 	ti.CharLimit = 6
@@ -87,6 +95,7 @@ func Start() {
 	m.list.StartSpinner()
 	m.list.StatusMessageLifetime = time.Second * 10
 	m.list.Title = "Pods"
+	m.view = 4
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
@@ -103,12 +112,14 @@ func (m model) Init() tea.Cmd {
 }
 func (m model) View() string {
 	switch m.view {
-	case podsView, serviceView:
+	case podsView, endpointView, serviceView:
 		return m.listView()
-	case forwardView:
-		return m.forwardView()
-	case serviceAddView:
-		return m.serviceAddView()
+	case podForwardView:
+		return m.podForwardView()
+	case serviceForwardView:
+		return m.serviceForwardView()
+	case endpointAddView:
+		return m.endpointAddView()
 	}
 	return "Something went wrong"
 }
@@ -123,19 +134,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 
-		case forwardView:
-			m, cmd := m.handleForwardView(msg)
+		case podForwardView:
+			m, cmd := m.handlePodForwardView(msg)
 			log.Info(cmd)
 			if cmd != nil {
 				return m, cmd
 			}
-		case serviceAddView:
-			m, cmd := m.handleServiceAddView(msg)
+		case endpointAddView:
+			m, cmd := m.handleEndpointAddView(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+		case endpointView:
+			m, cmd := m.handleEndpointView(msg)
 			if cmd != nil {
 				return m, cmd
 			}
 		case serviceView:
-			m, cmd := m.handleServiceView(msg)
+			m, cmd := m.handleServicesView(msg)
+			if cmd != nil {
+				return m, cmd
+			}
+		case serviceForwardView:
+			m, cmd := m.handleServiceForwardView(msg)
 			if cmd != nil {
 				return m, cmd
 			}
@@ -164,11 +185,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	switch m.view {
-	case podsView:
+	case podsView, serviceView:
 		m.list, cmd = m.list.Update(msg)
-	case forwardView, serviceAddView:
+	case podForwardView, endpointAddView, serviceForwardView:
 		cmd = m.updateInputs(msg)
-	case serviceView:
+	case endpointView:
 		m.list, cmd = m.list.Update(msg)
 
 	}
@@ -197,9 +218,9 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.error("All fields have to be filled")
 		}
 		switch m.view {
-		case forwardView:
+		case podForwardView, serviceForwardView:
 			return m.setupForward()
-		case serviceAddView:
+		case endpointAddView:
 			return m.setupEndpoint()
 		}
 
@@ -208,7 +229,7 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Cycle indexes
 	if s == "up" || s == "shift+tab" {
 		m.focusIndex--
-	} else if s != "tab" || (s == "tab" && m.view != forwardView) {
+	} else if s != "tab" || (s == "tab" && m.view != podForwardView) {
 		m.focusIndex++
 	}
 

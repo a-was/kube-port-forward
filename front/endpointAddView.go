@@ -12,7 +12,7 @@ import (
 	"github.com/main-kube/util"
 )
 
-func (m model) handleServiceAddView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) handleEndpointAddView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case tea.KeyEsc.String():
 		return m.resetView()
@@ -22,7 +22,7 @@ func (m model) handleServiceAddView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) serviceAddView() string {
+func (m model) endpointAddView() string {
 	var b strings.Builder
 
 	for i := range m.inputs {
@@ -37,12 +37,12 @@ func (m model) serviceAddView() string {
 		button = &focusedButton
 	}
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
-	fmt.Fprintf(&b, "\n%s\n", m.serviceAddError)
+	fmt.Fprintf(&b, "\n%s\n", m.endpointAddError)
 
 	return b.String()
 }
 
-func (m model) serviceInputs() model {
+func (m model) endpointInputs() model {
 	m.inputs = make([]textinput.Model, 4)
 	var t textinput.Model
 	for i := range m.inputs {
@@ -80,7 +80,7 @@ func (m model) setupEndpoint() (tea.Model, tea.Cmd) {
 
 	hp, err := strconv.Atoi((m.inputs[2].Value()))
 	if err != nil {
-		return m.serviceError(err.Error())
+		return m.endpointError(err.Error())
 	}
 
 	// kp, err := strconv.Atoi((m.inputs[3].Value()))
@@ -97,11 +97,11 @@ func (m model) setupEndpoint() (tea.Model, tea.Cmd) {
 		Addr:      m.inputs[3].Value(),
 	}
 	if end.CheckServiceExists() {
-		return m.serviceError("Service already exists")
+		return m.endpointError("Service already exists")
 	}
 
 	m.view = 3
-	m.serviceAddError = ""
+	m.endpointAddError = ""
 	go func(m model) {
 		if err := end.CreateService(); err != nil {
 			m.notify <- statusMessage{err.Error()}
@@ -111,7 +111,7 @@ func (m model) setupEndpoint() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) serviceError(msg string) (tea.Model, tea.Cmd) {
-	m.serviceAddError = errColour + msg
+func (m model) endpointError(msg string) (tea.Model, tea.Cmd) {
+	m.endpointAddError = errColour + msg
 	return m.Update(statusMessage{text: msg})
 }

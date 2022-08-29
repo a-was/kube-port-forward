@@ -10,12 +10,15 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-type PodPortForwardA struct {
+type PortForwardA struct {
 	KubeClient *ClientS
 
+	Name      string
+	Namespace string
 	LocalPort int
-	// PodPort is the target port for the pod
-	PodPort   int
+	// KubePort is the target port for the pod
+	KubePort  int
+	Resource  string
 	Condition bool
 
 	// Steams configures where to write or read input from
@@ -33,7 +36,8 @@ func init() {
 	os.Stderr = out
 }
 
-func (pod *Pod) Forward(pf *PodPortForwardA) error {
+func (pf *PortForwardA) Forward() {
+
 	pf.KubeClient = Client
 	pf.stopCh = make(chan struct{}, 1)
 	pf.readyCh = make(chan struct{})
@@ -42,17 +46,25 @@ func (pod *Pod) Forward(pf *PodPortForwardA) error {
 		ErrOut: out,
 		In:     os.Stdin,
 	}
+	log.Info("PortForward")
+	log.Info(pf.Resource)
 
-	url := pf.KubeClient.API.RESTClient().Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").Prefix("/api/v1").URL()
+	url := pf.KubeClient.API.RESTClient().Post().Resource(pf.Resource).Namespace(pf.Namespace).Name(pf.Name).SubResource("portforward").Prefix("/api/v1").URL()
+	log.Info(url)
 	transport, upgrader, err := spdy.RoundTripperFor(pf.KubeClient.Config)
 	if err != nil {
-		return err
+		log.Error(err)
+		fmt.Fprintln(out, err)
+		return
 	}
+	fmt.Fprintln(out, "PortForward started")
 
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, url)
-	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", pf.LocalPort, pf.PodPort)}, pf.stopCh, pf.readyCh, pf.streams.Out, pf.streams.ErrOut)
+	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", pf.LocalPort, pf.KubePort)}, pf.stopCh, pf.readyCh, pf.streams.Out, pf.streams.ErrOut)
 	if err != nil {
-		return err
+		fmt.Fprintln(out, err)
+		log.Error(err)
+		return
 	}
 
 	// if pod.PodPortForwardA != nil {
@@ -61,12 +73,14 @@ func (pod *Pod) Forward(pf *PodPortForwardA) error {
 
 	if err := fw.ForwardPorts(); err != nil {
 		pf = nil
-		return err
+		fmt.Fprintln(out, err)
+		log.Error(err)
+		return
 	}
-	return nil
+
 }
 
-func (req *PodPortForwardA) Close() {
+func (req *PortForwardA) Close() {
 	if req == nil {
 		return
 	}
@@ -74,6 +88,6 @@ func (req *PodPortForwardA) Close() {
 }
 
 // TODO fix this
-func (req *PodPortForwardA) Ready() {
+func (req *PortForwardA) Ready() {
 	<-req.readyCh
 }

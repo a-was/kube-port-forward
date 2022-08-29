@@ -13,11 +13,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (m model) handleForwardView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) handlePodForwardView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case tea.KeyTab.String():
 		if m.podPortfill > len(m.selectedPod.Ports) || m.podPortfill >= len(m.selectedPod.Ports) {
 			m.podPortfill = 0
+		}
+		if m.focusIndex >= len(m.inputs) {
+			m.focusIndex = 0
 		}
 		m.inputs[m.focusIndex].SetValue(m.selectedPod.Ports[m.podPortfill])
 		m.podPortfill++
@@ -33,7 +36,7 @@ func (m model) handleForwardView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) forwardView() string {
+func (m model) podForwardView() string {
 	var b strings.Builder
 	b.WriteString("Pod Ports: ")
 	for _, port := range m.selectedPod.Ports {
@@ -68,7 +71,7 @@ func (m model) forwardInputs() model {
 
 		switch i {
 		case 0:
-			t.Placeholder = "PodPort"
+			t.Placeholder = "ResourcePort"
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
@@ -84,7 +87,9 @@ func (m model) forwardInputs() model {
 }
 
 func (m model) setupForward() (tea.Model, tea.Cmd) {
+
 	if m.inputs[0].Value() == "" || m.inputs[1].Value() == "" {
+		log.Info()
 		return m.fpError("One of ports was empty")
 	}
 	pp, err := strconv.Atoi((m.inputs[0].Value()))
@@ -97,39 +102,65 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 	if err != nil {
 		return m.fpError(err.Error())
 	}
-
 	// check port is already forwarded
 	if m.checkPorts(pp) {
 		return m.fpError("Port already forwarded")
 	}
+	// if !checkLocalPort(strconv.Itoa(lp)) {
+	// 	return m.fpError("Local port is taken")
+	// }
 
-	if !checkLocalPort(strconv.Itoa(lp)) {
-		return m.fpError("Local port is taken")
+	var pf *kube.PortForwardA
+	switch m.view {
+	case podForwardView:
+		pf = &kube.PortForwardA{
+			Name:      m.selectedPod.Name,
+			Namespace: m.selectedPod.Namespace,
+			Resource:  "pods",
+			KubePort:  pp,
+			LocalPort: lp,
+		}
+		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
+	case serviceForwardView:
+		pf = &kube.PortForwardA{
+			Name:      m.selectedService.Name,
+			Namespace: m.selectedService.Namespace,
+			Resource:  "services",
+			KubePort:  pp,
+			LocalPort: lp,
+		}
+		m.selectedService.PFs = append(m.selectedService.PFs, pf)
 	}
-
-	m.view = 0
-	pf := &kube.PodPortForwardA{
-		PodPort:   pp,
-		LocalPort: lp,
-	}
+	log.Info(m.selectedService.Name)
+	log.Info(m.selectedService.Namespace)
 
 	go func() {
-		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
-		go m.selectedPod.Forward(pf)
-		pf.Ready()
-		log.Info("Ports ready")
+		go pf.Forward()
+		// pf.Ready()
+		// log.Info("Ports ready")
 	}()
+	m.view = m.lastView
 	m.forwardError = ""
 	m.notify <- kube.MapUpdateMsg{}
 	return m.render()
 }
 
 func (m model) checkPorts(pp int) bool {
-	for _, pf := range m.selectedPod.PFs {
-		if pf.PodPort == pp {
-			return true
+	switch m.view {
+	case podForwardView:
+		for _, pf := range m.selectedPod.PFs {
+			if pf.KubePort == pp {
+				return true
+			}
+		}
+	case serviceForwardView:
+		for _, pf := range m.selectedService.PFs {
+			if pf.KubePort == pp {
+				return true
+			}
 		}
 	}
+
 	return false
 }
 
@@ -149,5 +180,5 @@ func checkLocalPort(lp string) bool {
 func (m model) fpError(msg string) (tea.Model, tea.Cmd) {
 
 	m.forwardError = errColour + msg
-	return m.Update(statusMessage{text: msg})
+	return m.render()
 }

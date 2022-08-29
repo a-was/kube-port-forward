@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
 
 	"go.uber.org/zap"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
@@ -19,8 +21,9 @@ import (
 )
 
 var (
-	log    = zap.S()
-	Client *ClientS
+	log        *zap.SugaredLogger
+	Client     *ClientS
+	namespaces []string
 )
 
 // ClientS ...
@@ -35,6 +38,8 @@ type ClientS struct {
 }
 
 func Connect(configName string) {
+	log = zap.S()
+
 	var err error
 	Client, err = newClient(findConfig(configName))
 	if err != nil {
@@ -42,7 +47,8 @@ func Connect(configName string) {
 		log.Fatal(err)
 		return
 	}
-	discover()
+	go getNamespaces()
+	go discover()
 }
 
 func findConfig(configName string) (kConfig []byte) {
@@ -111,4 +117,16 @@ func newClient(config []byte) (client *ClientS, err error) {
 	kube.CTX = context.TODO()
 
 	return kube, nil
+}
+
+func getNamespaces() {
+	for range time.Tick(time.Second) {
+
+		ns, _ := Client.API.CoreV1().Namespaces().List(Client.CTX, v1.ListOptions{})
+		nsl := make([]string, 0, len(ns.Items))
+		for _, n := range ns.Items {
+			nsl = append(nsl, n.Name)
+		}
+		namespaces = nsl
+	}
 }
