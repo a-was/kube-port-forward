@@ -2,7 +2,6 @@ package front
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,7 +13,8 @@ func (m model) handleServicesView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
 		m.view = podsView
 		m.lastView = m.view
-		return m.render()
+		return m.Update(kube.MapUpdateMsg{})
+
 	case tea.KeyEnter.String():
 		m.view = serviceForwardView
 		m = m.forwardInputs()
@@ -62,18 +62,4 @@ func createNewServiceList() (items []list.Item) {
 		}
 	}
 	return
-}
-
-func testServiceAKAPodConnections() {
-	for range time.Tick(time.Second) {
-		for element := range kube.Services.Iter() {
-			for ser := range element.Value.Iter() {
-				for _, pf := range ser.Value.PFs {
-					if pf != nil {
-						go ping(pf)
-					}
-				}
-			}
-		}
-	}
 }

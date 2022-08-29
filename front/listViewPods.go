@@ -15,7 +15,7 @@ func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
 		m.view = serviceView
 		m.lastView = m.view
-		return m.render()
+		return m.Update(kube.MapUpdateMsg{})
 
 	// case tea.KeyCtrlLeft.String():
 	// 	m.view = serviceAddView

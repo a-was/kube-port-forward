@@ -86,7 +86,6 @@ func Start() {
 	go kube.UpdateMap(m.notify)
 	go kube.UpdateServiceMap(m.notify)
 	go testConnections()
-	// go testServiceAKAPodConnections()
 	ti := textinput.New()
 	ti.CharLimit = 6
 	ti.Width = 20
@@ -94,8 +93,8 @@ func Start() {
 	m.list.SetSpinner(x)
 	m.list.StartSpinner()
 	m.list.StatusMessageLifetime = time.Second * 10
-	m.list.Title = "Pods"
-	// m.view = 4
+	m.list.Title = "Services"
+	m.view = 4
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
