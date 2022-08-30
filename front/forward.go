@@ -1,12 +1,16 @@
 package front
 
 import (
+	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/dns"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
 )
 
@@ -50,13 +54,17 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 	if err != nil {
 		return m.fpError(err.Error())
 	}
+
 	// check port is already forwarded
-	if m.checkPorts(pp) {
-		return m.fpError("Port already forwarded")
+	err = m.checkPorts(pp)
+	if err != nil {
+		return m.fpError(err.Error())
 	}
-	// if !checkLocalPort(strconv.Itoa(lp)) {
-	// 	return m.fpError("Local port is taken")
-	// }
+
+	err = checkLocalPort(strconv.Itoa(lp))
+	if err != nil {
+		return m.fpError(err.Error())
+	}
 
 	var pf *kube.PortForwardA
 	switch m.view {
@@ -69,6 +77,12 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			LocalPort: lp,
 		}
 		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
+
+		// DNS
+		ip := strings.ReplaceAll(m.selectedPod.IP, ".", "-")
+		dns.Register(fmt.Sprintf(config.DNS_POD_FMT, ip, pf.Namespace), "127.0.0.1")
+		dns.Register(fmt.Sprintf(config.DNS_POD_FMT+"cluster.local.", ip, pf.Namespace), "127.0.0.1")
+
 	case serviceForwardView:
 		pf = &kube.PortForwardA{
 			Name:        m.selectedService.Name,
@@ -79,47 +93,52 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			LocalPort:   lp,
 		}
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
+
+		// DNS
+		dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT, pf.Name, pf.Namespace), "127.0.0.1")
+		dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT+"cluster.local.", pf.Name, pf.Namespace), "127.0.0.1")
 	}
 
-	go func() {
-		go pf.Forward(m.notify)
-	}()
+	go pf.Forward(m.notify)
+
 	m.view = m.lastView
 	m.forwardError = ""
 	m.notify <- kube.MapUpdateMsg{}
 	return m.render()
 }
 
-func (m model) checkPorts(pp int) bool {
+func (m model) checkPorts(pp int) error {
 	switch m.view {
 	case podForwardView:
 		for _, pf := range m.selectedPod.PFs {
 			if pf.KubePort == pp {
-				return true
+				return fmt.Errorf("port already used")
 			}
 		}
 	case serviceForwardView:
 		for _, pf := range m.selectedService.PFs {
 			if pf.KubePort == pp {
-				return true
+				return fmt.Errorf("port already used")
 			}
 		}
 	}
 
-	return false
+	return nil
 }
 
-func checkLocalPort(lp string) bool {
+func checkLocalPort(lp string) error {
 	timeout := time.Second
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", lp), timeout)
 	if err != nil {
-		return true
+		// Connection refused
+		return nil
 	}
+
 	if conn != nil {
 		defer conn.Close()
-		return false
+		return fmt.Errorf("connection failed")
 	}
-	return false
+	return nil
 }
 
 func (m model) fpError(msg string) (tea.Model, tea.Cmd) {

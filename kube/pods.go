@@ -25,6 +25,7 @@ type Pod struct {
 	Name      string
 	Namespace string
 	Status    string
+	IP        string
 	Ports     []string
 }
 type MapUpdateMsg struct{}
@@ -88,6 +89,7 @@ func addPods(nsName string, notify chan any) {
 			Namespace: nsName,
 			Status:    string(p.Status.Phase),
 			Ports:     fillPorts(p),
+			IP:        p.Status.PodIP,
 		})
 	}
 	for _, element := range slice.Diff(nameList, podMap.Keys()) {

@@ -3,7 +3,6 @@ package dns
 import (
 	"fmt"
 
-	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
 	"github.com/main-kube/util/safe"
 	"github.com/miekg/dns"
 	"go.uber.org/zap"
@@ -15,13 +14,12 @@ var (
 )
 
 func Start() {
-	if !config.DNS_ENABLED {
-		return
-	}
 	log = zap.S()
 
 	// attach request handler func
-	dns.HandleFunc("svc.", handleDnsRequest)
+	dns.HandleFunc("svc.", handleDnsRequest)   // service
+	dns.HandleFunc("pod.", handleDnsRequest)   // pod
+	dns.HandleFunc("local.", handleDnsRequest) // cluster.local
 
 	// start server
 	server := &dns.Server{Addr: ":53", Net: "udp"}
@@ -29,11 +27,12 @@ func Start() {
 	err := server.ListenAndServe()
 	defer server.Shutdown()
 	if err != nil {
-		log.Fatalf("Failed to start server: %s\n ", err.Error())
+		log.Errorf("Failed to start server: %s\n ", err.Error())
 	}
 }
 
 func Register(name, ip string) {
+	log.Infof("Registering dns A record for %s\n", name)
 	records.Set(name, ip)
 }
 
