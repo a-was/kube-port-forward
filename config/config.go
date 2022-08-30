@@ -10,7 +10,7 @@ import (
 var (
 	KUBECONFIG_FOLDERS []string
 
-	DNS_ENABLED = env.Get("DNS_ENABLED", false)
+	DNS_SERVICE_FMT = "%s.%s.svc." // svc name, svc namespace
 )
 
 func init() {

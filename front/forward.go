@@ -1,12 +1,15 @@
 package front
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/dns"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
 )
 
@@ -81,9 +84,9 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
 	}
 
-	go func() {
-		go pf.Forward(m.notify)
-	}()
+	go pf.Forward(m.notify)
+	dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT, pf.Name, pf.Namespace), "127.0.0.1")
+
 	m.view = m.lastView
 	m.forwardError = ""
 	m.notify <- kube.MapUpdateMsg{}

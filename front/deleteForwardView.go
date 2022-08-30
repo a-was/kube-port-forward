@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/config"
+	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/dns"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
 	"github.com/main-kube/util"
 	"go.uber.org/zap"
@@ -19,7 +21,9 @@ func (m model) toDelete() (tea.Model, tea.Cmd) {
 		m.list.Title = m.selectedPod.Name
 		m.selectedService = nil
 		if len(m.selectedPod.PFs) == 1 {
-			m.selectedPod.PFs[0].Close()
+			pf := m.selectedPod.PFs[0]
+			pf.Close()
+			dns.Unregister(fmt.Sprintf(config.DNS_SERVICE_FMT, pf.Name, pf.Namespace))
 			return m.render()
 		}
 	case servicesView:
@@ -27,7 +31,9 @@ func (m model) toDelete() (tea.Model, tea.Cmd) {
 		m.list.Title = m.selectedService.Name
 		m.selectedPod = nil
 		if len(m.selectedService.PFs) == 1 {
-			m.selectedService.PFs[0].Close()
+			pf := m.selectedService.PFs[0]
+			pf.Close()
+			dns.Unregister(fmt.Sprintf(config.DNS_SERVICE_FMT, pf.Name, pf.Namespace))
 			return m.render()
 		}
 	}
