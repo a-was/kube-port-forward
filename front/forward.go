@@ -55,11 +55,14 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 	}
 
 	// check port is already forwarded
-	if m.checkPorts(pp) {
-		return m.fpError("Port already forwarded")
+	err = m.checkPorts(pp)
+	if err != nil {
+		return m.fpError(err.Error())
 	}
-	if !checkLocalPort(strconv.Itoa(lp)) {
-		return m.fpError("Local port is taken")
+
+	err = checkLocalPort(strconv.Itoa(lp))
+	if err != nil {
+		return m.fpError(err.Error())
 	}
 
 	var pf *kube.PortForwardA
@@ -94,36 +97,38 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 	return m.render()
 }
 
-func (m model) checkPorts(pp int) bool {
+func (m model) checkPorts(pp int) error {
 	switch m.view {
 	case podForwardView:
 		for _, pf := range m.selectedPod.PFs {
 			if pf.KubePort == pp {
-				return true
+				return fmt.Errorf("port already used")
 			}
 		}
 	case serviceForwardView:
 		for _, pf := range m.selectedService.PFs {
 			if pf.KubePort == pp {
-				return true
+				return fmt.Errorf("port already used")
 			}
 		}
 	}
 
-	return false
+	return nil
 }
 
-func checkLocalPort(lp string) bool {
+func checkLocalPort(lp string) error {
 	timeout := time.Second
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", lp), timeout)
 	if err != nil {
-		return true
+		// Connection refused
+		return nil
 	}
+
 	if conn != nil {
 		defer conn.Close()
-		return false
+		return fmt.Errorf("connection failed")
 	}
-	return false
+	return nil
 }
 
 func (m model) fpError(msg string) (tea.Model, tea.Cmd) {
