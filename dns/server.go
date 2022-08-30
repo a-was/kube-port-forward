@@ -17,7 +17,9 @@ func Start() {
 	log = zap.S()
 
 	// attach request handler func
-	dns.HandleFunc("svc.", handleDnsRequest)
+	dns.HandleFunc("svc.", handleDnsRequest)   // service
+	dns.HandleFunc("pod.", handleDnsRequest)   // pod
+	dns.HandleFunc("local.", handleDnsRequest) // cluster.local
 
 	// start server
 	server := &dns.Server{Addr: ":53", Net: "udp"}
