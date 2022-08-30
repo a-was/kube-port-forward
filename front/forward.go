@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -76,7 +77,12 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			LocalPort: lp,
 		}
 		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
-		// dns.Register(fmt.Sprintf(config.DNS_POD_FMT, m.ip, pf.Namespace), "127.0.0.1")
+
+		// DNS
+		ip := strings.ReplaceAll(m.selectedPod.IP, ".", "-")
+		dns.Register(fmt.Sprintf(config.DNS_POD_FMT, ip, pf.Namespace), "127.0.0.1")
+		dns.Register(fmt.Sprintf(config.DNS_POD_FMT+"cluster.local.", ip, pf.Namespace), "127.0.0.1")
+
 	case serviceForwardView:
 		pf = &kube.PortForwardA{
 			Name:        m.selectedService.Name,
@@ -87,6 +93,8 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			LocalPort:   lp,
 		}
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
+
+		// DNS
 		dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT, pf.Name, pf.Namespace), "127.0.0.1")
 		dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT+"cluster.local.", pf.Name, pf.Namespace), "127.0.0.1")
 	}
