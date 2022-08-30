@@ -53,13 +53,14 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 	if err != nil {
 		return m.fpError(err.Error())
 	}
+
 	// check port is already forwarded
 	if m.checkPorts(pp) {
 		return m.fpError("Port already forwarded")
 	}
-	// if !checkLocalPort(strconv.Itoa(lp)) {
-	// 	return m.fpError("Local port is taken")
-	// }
+	if !checkLocalPort(strconv.Itoa(lp)) {
+		return m.fpError("Local port is taken")
+	}
 
 	var pf *kube.PortForwardA
 	switch m.view {
