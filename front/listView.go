@@ -40,3 +40,11 @@ func (m model) listView() string {
 	}
 	return docStyle.Render(l)
 }
+
+func (m model) resetCursor() model {
+	m.list.Paginator.Page = 0
+	for m.list.Cursor() != 0 {
+		m.list.CursorUp()
+	}
+	return m
+}

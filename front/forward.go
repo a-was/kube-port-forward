@@ -75,6 +75,8 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			Resource:  "pods",
 			KubePort:  pp,
 			LocalPort: lp,
+			OwnerName: m.selectedPod.OwnerName,
+			Notify:    m.notify,
 		}
 		m.selectedPod.PFs = append(m.selectedPod.PFs, pf)
 
@@ -91,6 +93,7 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 			Resource:    "services",
 			KubePort:    pp,
 			LocalPort:   lp,
+			Notify:      m.notify,
 		}
 		m.selectedService.PFs = append(m.selectedService.PFs, pf)
 
@@ -99,7 +102,7 @@ func (m model) setupForward() (tea.Model, tea.Cmd) {
 		dns.Register(fmt.Sprintf(config.DNS_SERVICE_FMT+"cluster.local.", pf.Name, pf.Namespace), "127.0.0.1")
 	}
 
-	go pf.Forward(m.notify)
+	go pf.Forward()
 
 	m.view = m.lastView
 	m.forwardError = ""

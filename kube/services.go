@@ -46,6 +46,15 @@ func cleanServiceMap(ns []string) {
 		}
 	}
 }
+
+func (serv *Service) cleanServicePFs() {
+	for i, pf := range serv.PFs {
+		if !Map.Get(pf.Namespace).Exists(pf.Name) {
+			slice.RemoveIdx(&serv.PFs, i)
+		}
+	}
+}
+
 func addServices(namespace string, notify chan any) {
 	serviceList, err := Client.API.CoreV1().Services(namespace).List(Client.CTX, v1.ListOptions{})
 	if err != nil {

@@ -1,9 +1,8 @@
 package kube
 
 import (
-	"fmt"
-	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +23,7 @@ type Pod struct {
 	PFs       []*PortForwardA
 	Name      string
 	Namespace string
+	OwnerName string
 	Status    string
 	IP        string
 	Ports     []string
@@ -79,7 +79,7 @@ func addPods(nsName string, notify chan any) {
 		pod, ok := podMap.GetFull(p.Name)
 		if ok {
 			if string(p.Status.Phase) != pod.Status {
-				pod.Status = string(p.Status.Phase)
+				pod.Status = getPodStatus(p)
 				podMap.Set(p.Name, pod)
 			}
 			continue
@@ -87,17 +87,77 @@ func addPods(nsName string, notify chan any) {
 		podMap.Set(p.Name, &Pod{
 			Name:      p.Name,
 			Namespace: nsName,
-			Status:    string(p.Status.Phase),
+			Status:    getPodStatus(p),
 			Ports:     fillPorts(p),
 			IP:        p.Status.PodIP,
+			OwnerName: p.OwnerReferences[0].Name,
 		})
 	}
 	for _, element := range slice.Diff(nameList, podMap.Keys()) {
+		el := podMap.Get(element)
+		pfs := []*PortForwardA{}
+		if el != nil && len(el.PFs) > 0 {
+			for _, pf := range el.PFs {
+				pfs = append(pfs, pf.Copy())
+			}
+		}
 		podMap.Delete(element)
+		go tryReForward(pfs)
 	}
 
 	Map.Set(nsName, podMap)
 	notify <- MapUpdateMsg{}
+}
+
+func getPodStatus(p corev1.Pod) string {
+	for _, cond := range p.Status.Conditions {
+		if cond.Type == corev1.ContainersReady {
+			if cond.Status == corev1.ConditionFalse {
+				for _, st := range p.Status.ContainerStatuses {
+					switch {
+					case st.State.Terminated != nil:
+						return st.State.Terminated.Reason
+					case st.State.Waiting != nil:
+						return st.State.Waiting.Reason
+					}
+
+				}
+				return "Not Ready"
+			}
+			return "Ready"
+		}
+	}
+	return ""
+}
+
+func tryReForward(pfs []*PortForwardA) {
+	if len(pfs) == 0 {
+		return
+	}
+	ns := pfs[0].Namespace
+	owner := pfs[0].OwnerName
+	var pod *Pod
+	var service *Service
+	// find pod
+	for p := range Map.Get(ns).Iter() {
+		if strings.HasPrefix(p.Value.Name, owner) {
+			pod = p.Value
+			break
+		}
+	}
+	for serv := range Services.Get(ns).Iter() {
+		if strings.HasPrefix(pod.Name, serv.Value.Name) {
+			service = serv.Value
+			break
+		}
+	}
+	for _, pf := range pfs {
+		pf.Name = pod.Name
+		go pf.Forward()
+		pod.PFs = append(pod.PFs, pf)
+		service.cleanServicePFs()
+		service.PFs = append(service.PFs, pf)
+	}
 }
 
 func fillPorts(p corev1.Pod) (ports []string) {
@@ -107,21 +167,4 @@ func fillPorts(p corev1.Pod) (ports []string) {
 		}
 	}
 	return
-}
-
-func (p *Pod) Ping() {
-	for _, pf := range p.PFs {
-		if pf == nil {
-			log.Info("nil ", p.Name)
-			return
-		}
-		log.Info("ping ", p.Name)
-		_, err := http.Get(fmt.Sprintf("localhost:%d", pf.LocalPort))
-		if err != nil {
-			log.Info(err)
-			pf.Condition = false
-			return
-		}
-		pf.Condition = true
-	}
 }

@@ -28,14 +28,17 @@ const (
 )
 
 var (
-	docStyle      = lipgloss.NewStyle().Margin(0, 0)
-	focusedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	noStyle       = lipgloss.NewStyle()
-	cursorStyle   = focusedStyle.Copy()
-	blurredStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	focusedButton = focusedStyle.Copy().Render("[ Submit ]")
-	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
-	errColour     = "\033[38:5:204m"
+	docstyleReady  = lipgloss.NewStyle().Foreground(lipgloss.Color("#33cc00")) /* .UnderlineSpaces(true).Underline(true) */
+	docstylePodErr = lipgloss.NewStyle().Foreground(lipgloss.Color("#ac6c00")) /* .UnderlineSpaces(true).Underline(true) */
+	docstyleTerm   = lipgloss.NewStyle().Foreground(lipgloss.Color("#60686c")) /* .UnderlineSpaces(true).Underline(true) */
+	docStyle       = lipgloss.NewStyle().Margin(0, 0)
+	focusedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	noStyle        = lipgloss.NewStyle()
+	cursorStyle    = focusedStyle.Copy()
+	blurredStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	focusedButton  = focusedStyle.Copy().Render("[ Submit ]")
+	blurredButton  = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+	errColour      = "\033[38:5:204m"
 
 	log       *zap.SugaredLogger
 	areaWidth int
@@ -82,7 +85,11 @@ func Start() {
 	defer f.Close()
 
 	items := []list.Item{}
-	m := model{list: list.New(items, list.NewDefaultDelegate(), 0, 0), notify: make(chan any, 10)}
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedDesc.BorderBottom(true).BorderLeft(false)
+	delegate.Styles.SelectedTitle.BorderLeft(false)
+
+	m := model{list: list.New(items, delegate, 0, 0), notify: make(chan any, 10)}
 	m.list.KeyMap = initKeyMap()
 	go kube.UpdateMap(m.notify)
 	go kube.UpdateServiceMap(m.notify)

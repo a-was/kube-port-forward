@@ -7,8 +7,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var log *zap.SugaredLogger
-
 func customlogTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	enc.AppendString(t.Format("15:04:05.000")) //Jan 2
 }
@@ -21,7 +19,7 @@ func customCallerEncoder(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayE
 	enc.AppendString("\033[38;5;241m" + caller.TrimmedPath() + ":" + "\033[0m")
 }
 
-func init() {
+func initLogger() *zap.Logger {
 	cfg := zap.NewDevelopmentConfig()
 	cfg.EncoderConfig.ConsoleSeparator = " "
 	cfg.EncoderConfig.EncodeTime = customlogTimeEncoder
@@ -33,6 +31,5 @@ func init() {
 	cfg.OutputPaths = []string{"log" /* , "stdout" */}
 	logger, _ := cfg.Build()
 	logger = logger.WithOptions(zap.AddStacktrace(zap.PanicLevel))
-	zap.ReplaceGlobals(logger)
-	log = zap.S()
+	return logger
 }

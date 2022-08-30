@@ -3,6 +3,7 @@ package front
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -14,6 +15,7 @@ func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
 		m.view = servicesView
+		m = m.resetCursor()
 		m.lastView = m.view
 		return m.Update(kube.MapUpdateMsg{})
 	case tea.KeyDelete.String():
@@ -26,10 +28,14 @@ func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// 	m = m.endpointInputs()
 	// 	return m.render()
 	case tea.KeyEnter.String():
-		m.view = podForwardView
-		m = m.forwardInputs()
 		// need to use findPod bc i don't know how to get desc from list.item
 		m.selectedPod = findPod(m.list.SelectedItem().FilterValue())
+		if !strings.HasSuffix(m.selectedPod.Status, "mReady") {
+			m.notify <- statusMessage{text: errColour + "Pod is not ready"}
+			return m.render()
+		}
+		m = m.forwardInputs()
+		m.view = podForwardView
 		return m.render()
 	}
 	return m, nil
@@ -37,12 +43,12 @@ func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func createNewPodList() (items []list.Item) {
 	items = make([]list.Item, 0, 30)
-	var name string
+	// var name string
 	for element := range kube.Map.Iter() {
 		for pod := range element.Value.Iter() {
-			name = pod.Value.Name
+			// name = pod.Value.Name
 			it := item{
-				title: name,
+				title: prettyTitle(pod.Value),
 				desc:  prettyDesc(pod.Value),
 			}
 			items = append(items, it)
@@ -62,16 +68,33 @@ func prettyDesc(pod *kube.Pod) (desc string) {
 		}
 	}
 	width += areaWidth - len(desc) - len(pod.Status) - 6
+	// if strings.HasSuffix(pod.Status, "mReady") {
+	// 	width += 13
+	// } else {
+	// 	width += 14
+	// }
 	for i := 0; i < width; i++ {
 		desc += " "
 	}
-	desc += pod.Status
+	switch pod.Status {
+	case "Ready":
+		desc += docstyleReady.Render(pod.Status)
+	case "Error":
+		desc += docstyleTerm.Render(pod.Status)
+	default:
+		desc += docstylePodErr.Render(pod.Status)
+	}
+	return
+}
+
+func prettyTitle(pod *kube.Pod) (title string) {
+	title = pod.Name
 	return
 }
 
 func connectionStatus(pf *kube.PortForwardA) (string, int) {
 	if pf.Condition {
-		return "✔️ ", 5
+		return "✅ ", 1
 	}
 	return "❌", 1
 }

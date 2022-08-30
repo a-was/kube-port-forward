@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/main-kube/util/slice"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,7 @@ type PortForwardA struct {
 	KubePort  int
 	Resource  string
 	Condition bool
+	OwnerName string
 
 	// Steams configures where to write or read input from
 	streams genericclioptions.IOStreams
@@ -31,6 +33,8 @@ type PortForwardA struct {
 	stopCh chan struct{}
 	// readyCh communicates when the tunnel is ready to receive traffic
 	readyCh chan struct{}
+
+	Notify chan any
 }
 
 var out *os.File
@@ -41,7 +45,7 @@ func init() {
 	os.Stderr = out
 }
 
-func (pf *PortForwardA) Forward(notify chan any) {
+func (pf *PortForwardA) Forward() {
 
 	pf.KubeClient = Client
 	pf.stopCh = make(chan struct{})
@@ -54,7 +58,7 @@ func (pf *PortForwardA) Forward(notify chan any) {
 	if pf.Resource == "services" {
 		pf.Resource = "pods"
 		if err := pf.getFirstPod(); err != nil {
-			notify <- err
+			pf.Notify <- err
 			log.Error(err)
 			return
 		}
@@ -63,7 +67,7 @@ func (pf *PortForwardA) Forward(notify chan any) {
 	url := pf.KubeClient.API.RESTClient().Post().Resource(pf.Resource).Namespace(pf.Namespace).Name(pf.Name).SubResource("portforward").Prefix("/api/v1").URL()
 	transport, upgrader, err := spdy.RoundTripperFor(pf.KubeClient.Config)
 	if err != nil {
-		notify <- err
+		pf.Notify <- err
 		log.Error(err)
 		return
 	}
@@ -71,15 +75,17 @@ func (pf *PortForwardA) Forward(notify chan any) {
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, url)
 	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", pf.LocalPort, pf.KubePort)}, pf.stopCh, pf.readyCh, pf.streams.Out, pf.streams.ErrOut)
 	if err != nil {
-		notify <- err
+		pf.Notify <- err
 		log.Error(err)
 		return
 	}
 
 	if err := fw.ForwardPorts(); err != nil {
-		pf = nil
-		notify <- err
+		pf.Notify <- err
 		log.Error(err)
+		if strings.Contains(err.Error(), "pod not found") {
+			go pf.Forward()
+		}
 		return
 	}
 
@@ -89,14 +95,16 @@ func (pf *PortForwardA) Close() {
 	if pf == nil {
 		return
 	}
-	pf.stopCh <- struct{}{}
+	select {
+	case pf.stopCh <- struct{}{}:
+	default:
+	}
 	slice.Remove(&Map.Get(pf.Namespace).Get(pf.Name).PFs, pf)
 	if Services.Get(pf.Namespace).Get(pf.ServiceName) != nil {
 		slice.Remove(&Services.Get(pf.Namespace).Get(pf.ServiceName).PFs, pf)
 	}
 }
 
-// it works now ¯\_(ツ)_/¯
 func (pf *PortForwardA) Ready() {
 	<-pf.readyCh
 }
@@ -124,7 +132,22 @@ func (pf *PortForwardA) getFirstPod() error {
 	}
 	pod := pods.Items[0]
 	pf.Name = pod.Name
+	pf.OwnerName = pod.ObjectMeta.OwnerReferences[0].Name
 	podm := Map.Get(pf.Namespace).Get(pf.Name)
 	podm.PFs = append(podm.PFs, pf)
 	return nil
+}
+
+func (pf *PortForwardA) Copy() *PortForwardA {
+	return &PortForwardA{
+		Name:        pf.Name,
+		ServiceName: pf.ServiceName,
+		Namespace:   pf.Namespace,
+		LocalPort:   pf.LocalPort,
+		KubePort:    pf.KubePort,
+		Resource:    pf.Resource,
+		Condition:   false,
+		OwnerName:   pf.OwnerName,
+		Notify:      pf.Notify,
+	}
 }
