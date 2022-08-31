@@ -3,7 +3,6 @@ package front
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -30,7 +29,7 @@ func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter.String():
 		// need to use findPod bc i don't know how to get desc from list.item
 		m.selectedPod = findPod(m.list.SelectedItem().FilterValue())
-		if !strings.HasSuffix(m.selectedPod.Status, "Ready") {
+		if m.selectedPod.Status != "Ready" {
 			m.notify <- statusMessage{text: errColour + "Pod is not ready"}
 			return m.render()
 		}
