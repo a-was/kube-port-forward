@@ -10,19 +10,31 @@ import (
 
 func (m model) handleEndpointView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
-		m.view = podsView
+	case tea.KeyPgUp.String():
+		m.view = servicesView
+		m.lastView = m.view
+		m.resetCursor()
 		return m.Update(kube.MapUpdateMsg{})
 
-	case tea.KeyCtrlLeft.String():
+	case tea.KeyPgDown.String():
+		m.view = podsView
+		m.lastView = m.view
+		m.resetCursor()
+		return m.Update(kube.MapUpdateMsg{})
+
+	case "alt+[2~":
 		m.view = endpointAddView
 		m = m.endpointInputs()
 		return m.render()
 
 	case tea.KeyDelete.String():
-		kube.DeleteService(m.list.SelectedItem().FilterValue())
+		if m.list.SelectedItem() == nil {
+			m.notify <- statusMessage{"Nothing to delete"}
+			return m.render()
+		}
+		kube.DeleteEndpoint(m.list.SelectedItem().FilterValue())
 	}
-	return m.render()
+	return m, nil
 }
 
 func createNewEndpointList() (items []list.Item) {
@@ -36,9 +48,7 @@ func createNewEndpointList() (items []list.Item) {
 			title: name,
 			desc:  desc,
 		}
-		log.Info(it)
 		items = append(items, it)
-
 	}
 	return
 }

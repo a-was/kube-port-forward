@@ -12,20 +12,23 @@ import (
 
 func (m model) handlePodsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
-		m.view = servicesView
-		m = m.resetCursor()
+	case tea.KeyPgUp.String():
+		m.view = endpointView
 		m.lastView = m.view
+		m = m.resetCursor()
 		return m.Update(kube.MapUpdateMsg{})
+
+	case tea.KeyPgDown.String():
+		m.view = servicesView
+		m.lastView = m.view
+		m = m.resetCursor()
+		return m.Update(kube.MapUpdateMsg{})
+
 	case tea.KeyDelete.String():
 		m.selectedPod = findPod(m.list.SelectedItem().FilterValue())
 		m.selectedService = nil
 		return m.toDelete()
 
-	// case tea.KeyCtrlLeft.String():
-	// 	m.view = serviceAddView
-	// 	m = m.endpointInputs()
-	// 	return m.render()
 	case tea.KeyEnter.String():
 		// need to use findPod bc i don't know how to get desc from list.item
 		m.selectedPod = findPod(m.list.SelectedItem().FilterValue())

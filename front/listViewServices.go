@@ -10,8 +10,15 @@ import (
 
 func (m model) handleServicesView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case tea.KeyPgUp.String(), tea.KeyPgDown.String():
+	case tea.KeyPgUp.String():
 		m.view = podsView
+		m.lastView = m.view
+		m = m.resetCursor()
+
+		return m.Update(kube.MapUpdateMsg{})
+
+	case tea.KeyPgDown.String():
+		m.view = endpointView
 		m.lastView = m.view
 		m = m.resetCursor()
 

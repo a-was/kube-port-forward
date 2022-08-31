@@ -55,7 +55,7 @@ func (end *Endpoint) CreateService() error {
 	return nil
 }
 
-func DeleteService(name string) {
+func DeleteEndpoint(name string) {
 	end, ok := Endpoints.GetFull(name)
 	if !ok {
 		return
