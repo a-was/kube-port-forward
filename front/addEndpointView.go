@@ -100,7 +100,7 @@ func (m model) setupEndpoint() (tea.Model, tea.Cmd) {
 		return m.endpointError("Service already exists")
 	}
 
-	m.view = endpointView
+	m.view = m.lastView
 	m.endpointAddError = ""
 	go func(m model) {
 		if err := end.CreateService(); err != nil {

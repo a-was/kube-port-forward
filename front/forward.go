@@ -3,6 +3,7 @@ package front
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -148,4 +149,32 @@ func (m model) fpError(msg string) (tea.Model, tea.Cmd) {
 
 	m.forwardError = errColour + msg
 	return m.render()
+}
+
+func testConnections() {
+	for range time.Tick(time.Second) {
+		for element := range kube.Map.Iter() {
+			for pod := range element.Value.Iter() {
+				for _, pf := range pod.Value.PFs {
+					if pf != nil {
+						go ping(pf)
+					}
+				}
+			}
+		}
+	}
+}
+
+func ping(p *kube.PortForwardA) {
+	if p == nil {
+		return
+	}
+	r, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d", p.LocalPort))
+	if err != nil {
+		log.Info(err)
+		p.Condition = false
+		return
+	}
+	r.Body.Close()
+	p.Condition = true
 }

@@ -43,7 +43,6 @@ func Connect(configName string) {
 	var err error
 	Client, err = newClient(findConfig(configName))
 	if err != nil {
-		fmt.Println(err)
 		log.Fatal(err)
 		return
 	}
@@ -92,7 +91,7 @@ func findConfig(configName string) (kConfig []byte) {
 		}
 
 	}
-	log.Errorf("Config not found in specified folders %v", config.KUBECONFIG_FOLDERS)
+	fmt.Printf("Config '%s' not found in specified folders %v", configName, config.KUBECONFIG_FOLDERS)
 	os.Exit(1)
 	return
 }

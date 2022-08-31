@@ -75,6 +75,9 @@ func addPods(nsName string, notify chan any) {
 	}
 	nameList := make([]string, 0, len(podlist.Items))
 	for _, p := range podlist.Items {
+		if p.OwnerReferences == nil {
+			continue
+		}
 		nameList = append(nameList, p.Name)
 		pod, ok := podMap.GetFull(p.Name)
 		if ok {
@@ -147,11 +150,17 @@ func tryReForward(pfs []*PortForwardA) {
 	}
 	for serv := range Services.Get(ns).Iter() {
 		if strings.HasPrefix(pod.Name, serv.Value.Name) {
+			if pod == nil {
+				return
+			}
 			service = serv.Value
 			break
 		}
 	}
 	for _, pf := range pfs {
+		if pod == nil {
+			return
+		}
 		pf.Name = pod.Name
 		go pf.Forward()
 		pod.PFs = append(pod.PFs, pf)

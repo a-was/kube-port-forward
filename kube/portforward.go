@@ -99,7 +99,9 @@ func (pf *PortForwardA) Close() {
 	case pf.stopCh <- struct{}{}:
 	default:
 	}
-	slice.Remove(&Map.Get(pf.Namespace).Get(pf.Name).PFs, pf)
+	if Map.Get(pf.Namespace).Get(pf.Name) != nil && Map.Get(pf.Namespace).Get(pf.Name).PFs != nil {
+		slice.Remove(&Map.Get(pf.Namespace).Get(pf.Name).PFs, pf)
+	}
 	if Services.Get(pf.Namespace).Get(pf.ServiceName) != nil {
 		slice.Remove(&Services.Get(pf.Namespace).Get(pf.ServiceName).PFs, pf)
 	}

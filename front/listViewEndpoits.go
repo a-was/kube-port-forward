@@ -23,6 +23,7 @@ func (m model) handleEndpointView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.Update(kube.MapUpdateMsg{})
 
 	case "alt+[2~":
+		m.lastView = m.view
 		m.view = endpointAddView
 		m = m.endpointInputs()
 		return m.render()

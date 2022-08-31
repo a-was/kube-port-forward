@@ -2,8 +2,6 @@ package front
 
 import (
 	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,31 +108,4 @@ func findPod(name string) *kube.Pod {
 		}
 	}
 	return nil
-}
-
-func testConnections() {
-	for range time.Tick(time.Second) {
-		for element := range kube.Map.Iter() {
-			for pod := range element.Value.Iter() {
-				for _, pf := range pod.Value.PFs {
-					if pf != nil {
-						go ping(pf)
-					}
-				}
-			}
-		}
-	}
-}
-
-func ping(p *kube.PortForwardA) {
-	if p == nil {
-		return
-	}
-	_, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d", p.LocalPort))
-	if err != nil {
-		log.Info(err)
-		p.Condition = false
-		return
-	}
-	p.Condition = true
 }

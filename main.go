@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	_ "net/http/pprof"
+
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/dns"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/front"
 	"github.com/fr-str/itsy-bitsy-teenie-weenie-port-forwarder-programini/kube"
