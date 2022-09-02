@@ -140,7 +140,7 @@ func checkLocalPort(lp string) error {
 
 	if conn != nil {
 		defer conn.Close()
-		return fmt.Errorf("connection failed")
+		return fmt.Errorf("localPort is used")
 	}
 	return nil
 }
