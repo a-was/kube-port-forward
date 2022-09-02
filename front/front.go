@@ -77,12 +77,6 @@ type model struct {
 
 func Start() {
 	log = zap.S()
-	f, err := tea.LogToFile("teaLog", "xD")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer f.Close()
 
 	items := []list.Item{}
 	delegate := list.NewDefaultDelegate()
@@ -237,9 +231,11 @@ func (m model) handleFocus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if s == "up" {
 		m.focusIndex--
 		m.podPortfill = 0
+		m.servicePortfill = 0
 	} else if s != "tab" {
 		m.focusIndex++
 		m.podPortfill = 0
+		m.servicePortfill = 0
 	}
 
 	if m.focusIndex > len(m.inputs) {

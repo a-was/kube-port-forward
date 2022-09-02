@@ -41,7 +41,7 @@ var out *os.File
 
 func init() {
 	// out, _ = os.OpenFile("/tmp/ibtwpfp-portforward-log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	out, _ = os.OpenFile("logk", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	out, _ = os.OpenFile("/tmp/log/itsy/logk", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	os.Stderr = out
 }
 

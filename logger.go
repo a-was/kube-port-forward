@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -28,7 +29,8 @@ func initLogger() *zap.Logger {
 	// cfg.EncoderConfig.EncodeCaller = customCallerEncoder
 	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
-	cfg.OutputPaths = []string{"log" /* , "stdout" */}
+	os.MkdirAll("/tmp/log/itsy", 0755)
+	cfg.OutputPaths = []string{"/tmp/log/itsy/zlog" /* , "stdout" */}
 	logger, _ := cfg.Build()
 	logger = logger.WithOptions(zap.AddStacktrace(zap.PanicLevel))
 	return logger

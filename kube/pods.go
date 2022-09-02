@@ -149,10 +149,10 @@ func tryReForward(pfs []*PortForwardA) {
 		}
 	}
 	for serv := range Services.Get(ns).Iter() {
+		if pod == nil {
+			return
+		}
 		if strings.HasPrefix(pod.Name, serv.Value.Name) {
-			if pod == nil {
-				return
-			}
 			service = serv.Value
 			break
 		}
